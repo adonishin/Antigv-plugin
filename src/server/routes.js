@@ -1206,8 +1206,10 @@ router.post('/v1/chat/completions', authenticateApiKey, async (req, res) => {
       try {
         await multiAccountClient.generateResponse(requestBody, async (data) => {
           if (data.type === 'error') {
-            // 尝试转储错误现场
-            if (data.upstreamResponse) {
+            // 尝试转储错误现场（跳过常见错误：Requested entity was not found, Prompt is too long, ILLEGAL_PROMPT）
+            const skipDumpPatterns = ['Requested entity was not found', 'Prompt is too long', 'Internal'];
+            const shouldSkipDump = skipDumpPatterns.some(pattern => data.content?.includes(pattern));
+            if (data.upstreamResponse && !shouldSkipDump) {
               await dumpErrorArtifacts(req.body, data.upstreamRequest || requestBody, data.upstreamResponse, data.content);
             }
 
@@ -1311,7 +1313,12 @@ router.post('/v1/chat/completions', authenticateApiKey, async (req, res) => {
         logger.error('生成响应失败:', error.message);
         
         // 尝试转储错误现场（如果是 ApiError，通常包含了 responseText）
-        if (error.name === 'ApiError' && error.responseText) {
+        // 跳过常见错误：Requested entity was not found, Prompt is too long, ILLEGAL_PROMPT
+        const skipDumpPatterns = ['Requested entity was not found', 'Prompt is too long', 'ILLEGAL_PROMPT'];
+        const shouldSkipDump = skipDumpPatterns.some(pattern =>
+          error.message?.includes(pattern) || error.responseText?.includes(pattern)
+        );
+        if (error.name === 'ApiError' && error.responseText && !shouldSkipDump) {
            await dumpErrorArtifacts(req.body, requestBody, error.responseText, error.message);
         }
 
@@ -1395,8 +1402,12 @@ router.post('/v1/chat/completions', authenticateApiKey, async (req, res) => {
       } catch (error) {
         logger.error('生成响应失败:', error.message);
         
-        // 尝试转储错误现场
-        if (error.name === 'ApiError' && error.responseText) {
+        // 尝试转储错误现场（跳过常见错误：Requested entity was not found, Prompt is too long, ILLEGAL_PROMPT）
+        const skipDumpPatterns = ['Requested entity was not found', 'Prompt is too long', 'Internal'];
+        const shouldSkipDump = skipDumpPatterns.some(pattern =>
+          error.message?.includes(pattern) || error.responseText?.includes(pattern)
+        );
+        if (error.name === 'ApiError' && error.responseText && !shouldSkipDump) {
            await dumpErrorArtifacts(req.body, requestBody, error.responseText, error.message);
         }
 
